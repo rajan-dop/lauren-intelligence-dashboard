@@ -187,25 +187,64 @@ function Sparkline() {
 
 // ── Practice accent colours ───────────────────────────────────────────────
 const PRACTICE_ACCENT = {
-  AWS:        { color: '#e07b00', light: 'rgba(224,123,0,.10)' },
-  IBM:        { color: '#1a56a8', light: 'rgba(26,86,168,.10)' },
-  'Red Hat':  { color: '#b30000', light: 'rgba(179,0,0,.09)'   },
-  WIZ:        { color: '#5b3fc4', light: 'rgba(91,63,196,.10)' },
-  GOOGLE:     { color: '#1967d2', light: 'rgba(25,103,210,.10)'},
-  Databricks: { color: '#c0392b', light: 'rgba(192,57,43,.09)' },
-  EDB:        { color: '#336791', light: 'rgba(51,103,145,.10)'},
-  Thales:     { color: '#003189', light: 'rgba(0,49,137,.09)'  },
-  F5:         { color: '#c0392b', light: 'rgba(192,57,43,.09)' },
-  Quest:      { color: '#2e7d32', light: 'rgba(46,125,50,.09)' },
-  Nutanix:    { color: '#024DA1', light: 'rgba(2,77,161,.09)'  },
+  // ── Core practices (user-defined) ─────────────────────────────────────
+  IBM:                  { color: '#1a56a8', light: 'rgba(26,86,168,.10)'   },
+  'RED HAT':            { color: '#b30000', light: 'rgba(179,0,0,.09)'     },
+  'CS-APP SECURITY':    { color: '#7c3aed', light: 'rgba(124,58,237,.10)'  },
+  'CS-FIREWALL':        { color: '#c0392b', light: 'rgba(192,57,43,.10)'   },
+  'CS-DATA SECURITY':   { color: '#0e7490', light: 'rgba(14,116,144,.10)'  },
+  'DC SOLUTIONS':       { color: '#059669', light: 'rgba(5,150,105,.10)'   },
+  SERVERS:              { color: '#d97706', light: 'rgba(217,119,6,.10)'   },
+  DATABASE:             { color: '#4338ca', light: 'rgba(67,56,202,.10)'   },
+  'IT OPERATIONS':      { color: '#0891b2', light: 'rgba(8,145,178,.10)'   },
+  // ── Legacy / other practices ────────────────────────────────────────
+  AWS:                  { color: '#e07b00', light: 'rgba(224,123,0,.10)'   },
+  WIZ:                  { color: '#5b3fc4', light: 'rgba(91,63,196,.10)'   },
+  GOOGLE:               { color: '#1967d2', light: 'rgba(25,103,210,.10)'  },
+  Databricks:           { color: '#c0392b', light: 'rgba(192,57,43,.09)'   },
+  EDB:                  { color: '#336791', light: 'rgba(51,103,145,.10)'  },
+  Thales:               { color: '#003189', light: 'rgba(0,49,137,.09)'    },
+  F5:                   { color: '#c0392b', light: 'rgba(192,57,43,.09)'   },
+  Quest:                { color: '#2e7d32', light: 'rgba(46,125,50,.09)'   },
+  Nutanix:              { color: '#024DA1', light: 'rgba(2,77,161,.09)'    },
+  // ── OEM-level accents (used in OEM pills) ────────────────────────────
+  'Red Hat':            { color: '#b30000', light: 'rgba(179,0,0,.09)'     },
+  CrowdStrike:          { color: '#fc0000', light: 'rgba(252,0,0,.09)'     },
+  'Palo Alto Networks': { color: '#e06c00', light: 'rgba(224,108,0,.10)'   },
+  Fortinet:             { color: '#c0392b', light: 'rgba(192,57,43,.09)'   },
+  'Check Point':        { color: '#cc0000', light: 'rgba(204,0,0,.09)'     },
+  Zscaler:              { color: '#1565c0', light: 'rgba(21,101,192,.10)'  },
+  Thales:               { color: '#003189', light: 'rgba(0,49,137,.09)'    },
+  Varonis:              { color: '#e040fb', light: 'rgba(224,64,251,.09)'  },
+  VMware:               { color: '#607196', light: 'rgba(96,113,150,.10)'  },
+  HPE:                  { color: '#01a982', light: 'rgba(1,169,130,.10)'   },
+  Dell:                 { color: '#007db8', light: 'rgba(0,125,184,.10)'   },
+  Lenovo:               { color: '#e2231a', light: 'rgba(226,35,26,.09)'   },
+  Oracle:               { color: '#f80000', light: 'rgba(248,0,0,.09)'     },
+};
+
+// ── Practice icon map ─────────────────────────────────────────────────────────
+const PRACTICE_ICONS = {
+  IBM:                '🔵',
+  'RED HAT':          '🔴',
+  'CS-APP SECURITY':  '🛡️',
+  'CS-FIREWALL':      '🔥',
+  'CS-DATA SECURITY': '🔒',
+  'DC SOLUTIONS':     '🖥️',
+  SERVERS:            '⚡',
+  DATABASE:           '🗄️',
+  'IT OPERATIONS':    '⚙️',
+  AWS:                '☁️',
 };
 
 // Maps a practice name to its brand CSS theme value
 const PRACTICE_THEME = {
-  IBM:        'ibm',
-  'Red Hat':  'redhat',
-  Databricks: 'databricks',
-  Nutanix:    'nutanix',
+  IBM:                'ibm',
+  'RED HAT':          'redhat',
+  Databricks:         'databricks',
+  Nutanix:            'nutanix',
+  // legacy spellings
+  'Red Hat':          'redhat',
 };
 
 // All available themes in cycle order
@@ -400,17 +439,151 @@ function ParticleBackground({ accent }) {
   );
 }
 
-function WelcomeScreen({ theme, setTheme, practice, product, products, onPracticeChange, onProductChange, onLaunch, _loading, practicesList }) {
-  const displayPractices = practicesList && practicesList.length ? practicesList : ['IBM', 'AWS'];
-  const accent = practiceAccent(practice);
+// ── Shared pill button ────────────────────────────────────────────────────────
+function PillBtn({ label, icon, isActive, accent, onClick, disabled }) {
+  const a = accent || { color: '#1a56a8' };
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      style={{
+        padding: '7px 16px',
+        borderRadius: 20,
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        fontSize: 12,
+        fontWeight: isActive ? 700 : 500,
+        letterSpacing: .3,
+        border: isActive ? `1.5px solid ${a.color}` : '1.5px solid rgba(255,255,255,0.15)',
+        background: isActive ? `${a.color}28` : 'rgba(255,255,255,0.06)',
+        color: isActive ? a.color : disabled ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.65)',
+        transition: 'all .15s',
+        whiteSpace: 'nowrap',
+        boxShadow: isActive ? `0 0 14px ${a.color}44` : 'none',
+        display: 'flex', alignItems: 'center', gap: 5,
+        opacity: disabled ? 0.45 : 1,
+      }}
+      onMouseEnter={e => {
+        if (!isActive && !disabled) {
+          e.currentTarget.style.borderColor = a.color + '88';
+          e.currentTarget.style.color = '#fff';
+          e.currentTarget.style.background = 'rgba(255,255,255,0.11)';
+        }
+      }}
+      onMouseLeave={e => {
+        if (!isActive && !disabled) {
+          e.currentTarget.style.borderColor = 'rgba(255,255,255,0.15)';
+          e.currentTarget.style.color = 'rgba(255,255,255,0.65)';
+          e.currentTarget.style.background = 'rgba(255,255,255,0.06)';
+        }
+      }}
+    >
+      {icon && <span style={{ fontSize: 13 }}>{icon}</span>}
+      {label}
+    </button>
+  );
+}
+
+// ── Step indicator ────────────────────────────────────────────────────────────
+function StepIndicator({ step, accent }) {
+  const steps = ['Practice', 'OEM', 'Product'];
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0, marginBottom: 22 }}>
+      {steps.map((s, i) => {
+        const num = i + 1;
+        const done = step > num;
+        const active = step === num;
+        return (
+          <React.Fragment key={s}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+              <div style={{
+                width: 28, height: 28, borderRadius: '50%',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 12, fontWeight: 700,
+                background: done ? accent.color : active ? `${accent.color}33` : 'rgba(255,255,255,0.08)',
+                border: active ? `2px solid ${accent.color}` : done ? `2px solid ${accent.color}` : '2px solid rgba(255,255,255,0.15)',
+                color: done ? '#fff' : active ? accent.color : 'rgba(255,255,255,0.4)',
+                transition: 'all .25s',
+              }}>
+                {done ? '✓' : num}
+              </div>
+              <span style={{ fontSize: 10, fontWeight: active ? 700 : 400, color: active ? accent.color : done ? 'rgba(255,255,255,0.6)' : 'rgba(255,255,255,0.3)', letterSpacing: .5 }}>
+                {s}
+              </span>
+            </div>
+            {i < 2 && (
+              <div style={{
+                width: 40, height: 2, marginBottom: 14,
+                background: step > num + 1 ? accent.color : step > num ? `${accent.color}66` : 'rgba(255,255,255,0.1)',
+                transition: 'background .25s',
+              }}/>
+            )}
+          </React.Fragment>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── Section header row ────────────────────────────────────────────────────────
+function SectionHeader({ label, count, badge, accent }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+      <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: 1.5, textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)' }}>
+        {label}
+      </span>
+      <div style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.1)' }}/>
+      {badge ? (
+        <span style={{ fontSize: 10.5, fontWeight: 700, padding: '2px 10px', borderRadius: 10, background: `${accent.color}28`, color: accent.color, border: `1px solid ${accent.color}55` }}>
+          {badge}
+        </span>
+      ) : (
+        <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', fontWeight: 500 }}>{count}</span>
+      )}
+    </div>
+  );
+}
+
+/**
+ * 3-step Welcome Screen: Practice → OEM → Product
+ * practices shape: { practice: { oem: [products] } }
+ */
+function WelcomeScreen({ theme, setTheme, practice, oem, product, practicesMap, onPracticeChange, onOemChange, onProductChange, onLaunch, loading }) {
+  const accentColor = practice ? practiceAccent(practice).color : '#1a56a8';
+  const accent = practice ? practiceAccent(practice) : { color: '#1a56a8', light: 'rgba(26,86,168,.10)' };
   const [productSearch, setProductSearch] = useState('');
 
-  // Reset search when practice changes
-  useEffect(() => { setProductSearch(''); }, [practice]);
+  // derive lists from 3-level map
+  const practicesList = practicesMap ? Object.keys(practicesMap) : [];
+  const oemMap = (practicesMap && practice && practicesMap[practice]) || {};
+  const oemList = Object.keys(oemMap);
+  const productList = (oem && oemMap[oem]) ? oemMap[oem] : (oemList.length === 1 ? oemMap[oemList[0]] || [] : []);
 
-  const filteredProducts = products.filter(p =>
+  // current step: 1=practice, 2=oem (skip if only 1 oem), 3=product
+  const skipOem = oemList.length <= 1;
+  const step = !practice ? 1 : (!oem && !skipOem) ? 2 : 3;
+
+  // Reset search when oem/practice changes
+  useEffect(() => { setProductSearch(''); }, [practice, oem]);
+
+  const filteredProducts = productList.filter(p =>
     p.toLowerCase().includes(productSearch.toLowerCase())
   );
+
+  // Show a minimal loading state while API data hasn't arrived yet
+  if (loading || practicesList.length === 0) {
+    return (
+      <div style={{
+        minHeight: '100vh', width: '100vw',
+        background: '#080a14',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        flexDirection: 'column', gap: 16,
+      }}>
+        <div style={{ width: 38, height: 38, border: '3px solid rgba(255,255,255,0.15)', borderTopColor: accentColor, borderRadius: '50%', animation: 'wspin .7s linear infinite' }}/>
+        <div style={{ color: 'rgba(255,255,255,0.45)', fontSize: 13, fontFamily: 'var(--font)' }}>Loading dashboard…</div>
+        <style>{`@keyframes wspin { to { transform: rotate(360deg); } }`}</style>
+      </div>
+    );
+  }
 
   return (
     <div style={{
@@ -430,310 +603,232 @@ function WelcomeScreen({ theme, setTheme, practice, product, products, onPractic
         onChange={e => setTheme(e.target.value)}
         style={{
           position: 'fixed', top: 14, right: 18,
-          background: 'rgba(10,12,24,0.82)',
-          color: '#fff',
+          background: 'rgba(10,12,24,0.82)', color: '#fff',
           border: '1px solid rgba(255,255,255,0.18)',
-          borderRadius: 8,
-          padding: '5px 10px',
-          fontSize: 12,
-          fontWeight: 600,
-          cursor: 'pointer',
-          zIndex: 9999,
+          borderRadius: 8, padding: '5px 10px',
+          fontSize: 12, fontWeight: 600, cursor: 'pointer', zIndex: 9999,
         }}
       >
-        {THEMES.map(t => (
-          <option key={t.id} value={t.id}>{t.icon} {t.label}</option>
-        ))}
+        {THEMES.map(t => <option key={t.id} value={t.id}>{t.icon} {t.label}</option>)}
       </select>
 
       {/* ── Main card ── */}
       <div style={{
         background: 'rgba(10, 12, 24, 0.72)',
-        backdropFilter: 'blur(18px)',
-        WebkitBackdropFilter: 'blur(18px)',
+        backdropFilter: 'blur(18px)', WebkitBackdropFilter: 'blur(18px)',
         border: `1px solid ${accent.color}44`,
-        borderRadius: 18,
-        width: '100%',
-        maxWidth: 680,
+        borderRadius: 18, width: '100%', maxWidth: 700,
         maxHeight: 'calc(100vh - 64px)',
         boxShadow: `0 0 0 1px ${accent.color}22, 0 24px 60px rgba(0,0,0,.55), 0 0 80px ${accent.color}18`,
-        display: 'flex',
-        flexDirection: 'column',
-        overflow: 'hidden',
-        position: 'relative',
-        zIndex: 1,
+        display: 'flex', flexDirection: 'column', overflow: 'hidden',
+        position: 'relative', zIndex: 1,
       }}>
 
-        {/* ── Header band ── */}
-        <div style={{
-          borderBottom: '1px solid rgba(255,255,255,0.08)',
-          padding: '28px 36px 24px',
-          textAlign: 'center',
-          flexShrink: 0,
-        }}>
-          <div style={{
-            fontSize: 11, fontWeight: 700, letterSpacing: 4,
-            color: 'rgba(255,255,255,0.45)', textTransform: 'uppercase', marginBottom: 8,
-          }}>
+        {/* ── Header ── */}
+        <div style={{ borderBottom: '1px solid rgba(255,255,255,0.08)', padding: '24px 36px 20px', textAlign: 'center', flexShrink: 0 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 4, color: 'rgba(255,255,255,0.45)', textTransform: 'uppercase', marginBottom: 6 }}>
             Lauren Group
           </div>
-          <div style={{
-            fontSize: 28, fontWeight: 900, color: '#ffffff',
-            letterSpacing: 1, lineHeight: 1.1,
-          }}>
+          <div style={{ fontSize: 26, fontWeight: 900, color: '#ffffff', letterSpacing: 1, lineHeight: 1.15 }}>
             Intelligence Dashboard
           </div>
-          <div style={{
-            width: 40, height: 3,
-            background: accent.color,
-            borderRadius: 2,
-            margin: '14px auto 0',
-            transition: 'background .35s',
-            boxShadow: `0 0 12px ${accent.color}99`,
-          }}/>
+          <div style={{ width: 40, height: 3, background: accent.color, borderRadius: 2, margin: '12px auto 0', transition: 'background .35s', boxShadow: `0 0 12px ${accent.color}99` }}/>
         </div>
 
-        {/* ── Body — scrollable middle section ── */}
-        <div style={{ padding: '28px 36px 0', overflowY: 'auto', flex: 1, minHeight: 0 }}>
+        {/* ── Body ── */}
+        <div style={{ padding: '24px 36px 0', overflowY: 'auto', flex: 1, minHeight: 0 }}>
 
-          {/* ── Practice section ── */}
-          <div style={{ marginBottom: 26 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-              <span style={{
-                fontSize: 10, fontWeight: 800, letterSpacing: 1.5,
-                textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)',
-              }}>
-                Practice
-              </span>
-              <div style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.1)' }}/>
-              <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', fontWeight: 500 }}>
-                {displayPractices.length} available
-              </span>
-            </div>
+          {/* Step indicator — only show if oem step is relevant */}
+          {!skipOem && <StepIndicator step={step} accent={accent} />}
 
-            {/* Practice pills */}
+          {/* ══ STEP 1 — Practice ══ */}
+          <div style={{ marginBottom: 22 }}>
+            <SectionHeader
+              label="Practice"
+              count={`${practicesList.length} available`}
+              badge={practice && step > 1 ? practice : null}
+              accent={accent}
+            />
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>
-              {displayPractices.map((p) => {
+              {practicesList.map((p) => {
                 const a = practiceAccent(p);
-                const isActive = practice === p;
+                const icon = PRACTICE_ICONS[p] || '';
                 return (
-                  <button
+                  <PillBtn
                     key={p}
+                    label={p}
+                    icon={icon}
+                    isActive={practice === p}
+                    accent={a}
                     onClick={() => onPracticeChange(p)}
-                    style={{
-                      padding: '6px 16px',
-                      borderRadius: 20,
-                      cursor: 'pointer',
-                      fontSize: 12,
-                      fontWeight: isActive ? 700 : 500,
-                      letterSpacing: .3,
-                      border: isActive ? `1.5px solid ${a.color}` : '1.5px solid rgba(255,255,255,0.15)',
-                      background: isActive ? `${a.color}28` : 'rgba(255,255,255,0.06)',
-                      color: isActive ? a.color : 'rgba(255,255,255,0.65)',
-                      transition: 'all .15s',
-                      whiteSpace: 'nowrap',
-                      boxShadow: isActive ? `0 0 14px ${a.color}44` : 'none',
-                    }}
-                    onMouseEnter={e => {
-                      if (!isActive) {
-                        e.currentTarget.style.borderColor = a.color + '88';
-                        e.currentTarget.style.color = '#fff';
-                        e.currentTarget.style.background = 'rgba(255,255,255,0.11)';
-                      }
-                    }}
-                    onMouseLeave={e => {
-                      if (!isActive) {
-                        e.currentTarget.style.borderColor = 'rgba(255,255,255,0.15)';
-                        e.currentTarget.style.color = 'rgba(255,255,255,0.65)';
-                        e.currentTarget.style.background = 'rgba(255,255,255,0.06)';
-                      }
-                    }}
-                  >
-                    {p}
-                  </button>
+                  />
                 );
               })}
             </div>
           </div>
 
           {/* ── Divider ── */}
-          <div style={{ height: '1px', background: 'rgba(255,255,255,0.08)', marginBottom: 24 }}/>
+          <div style={{ height: '1px', background: 'rgba(255,255,255,0.08)', marginBottom: 20 }}/>
 
-          {/* ── Product section ── */}
-          <div style={{ marginBottom: 28 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-              <span style={{
-                fontSize: 10, fontWeight: 800, letterSpacing: 1.5,
-                textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)',
-              }}>
-                Product
-              </span>
-              <div style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.1)' }}/>
-              {product ? (
-                <span style={{
-                  fontSize: 10.5, fontWeight: 700,
-                  padding: '2px 10px', borderRadius: 10,
-                  background: `${accent.color}28`,
-                  color: accent.color,
-                  border: `1px solid ${accent.color}55`,
-                }}>
-                  {product}
-                </span>
-              ) : (
-                <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', fontWeight: 500 }}>
-                  {products.length} products
-                </span>
-              )}
-            </div>
-
-            {/* Search box */}
-            {products.length > 6 && (
-              <div style={{ position: 'relative', marginBottom: 12 }}>
-                <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8"
-                  style={{
-                    position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)',
-                    width: 14, height: 14, color: 'rgba(255,255,255,0.35)', pointerEvents: 'none',
-                  }}>
-                  <circle cx="9" cy="9" r="6"/><path d="M15 15l-3.5-3.5"/>
-                </svg>
-                <input
-                  type="text"
-                  placeholder="Search products…"
-                  value={productSearch}
-                  onChange={e => setProductSearch(e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '8px 12px 8px 32px',
-                    borderRadius: 8,
-                    border: '1.5px solid rgba(255,255,255,0.14)',
-                    background: 'rgba(255,255,255,0.07)',
-                    color: '#fff',
-                    fontSize: 12.5,
-                    outline: 'none',
-                    boxSizing: 'border-box',
-                    transition: 'border-color .15s',
-                  }}
-                  onFocus={e => e.currentTarget.style.borderColor = accent.color + 'aa'}
-                  onBlur={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.14)'}
+          {/* ══ STEP 2 — OEM (only shown if >1 OEM exists for this practice) ══ */}
+          {!skipOem && (
+            <>
+              <div style={{ marginBottom: 22 }}>
+                <SectionHeader
+                  label="OEM / Vendor"
+                  count={`${oemList.length} vendors`}
+                  badge={oem && step > 2 ? oem : null}
+                  accent={accent}
                 />
-                {productSearch && (
-                  <button
-                    onClick={() => setProductSearch('')}
-                    style={{
-                      position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
-                      background: 'none', border: 'none', cursor: 'pointer',
-                      color: 'rgba(255,255,255,0.4)', padding: 0, lineHeight: 1, fontSize: 14,
-                    }}
-                  >×</button>
+                {!practice ? (
+                  <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', padding: '10px 0' }}>
+                    ← Select a Practice first
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>
+                    {oemList.map((o) => {
+                      const a = practiceAccent(o);
+                      return (
+                        <PillBtn
+                          key={o}
+                          label={o}
+                          isActive={oem === o}
+                          accent={a}
+                          onClick={() => onOemChange(o)}
+                        />
+                      );
+                    })}
+                  </div>
                 )}
               </div>
-            )}
+              <div style={{ height: '1px', background: 'rgba(255,255,255,0.08)', marginBottom: 20 }}/>
+            </>
+          )}
 
-            {/* Product list */}
-            <div style={{
-              border: '1.5px solid rgba(255,255,255,0.1)',
-              borderRadius: 10,
-              overflow: 'hidden',
-              maxHeight: 200,
-              overflowY: 'auto',
-            }}>
-              {filteredProducts.length === 0 ? (
-                <div style={{
-                  padding: '24px 16px', textAlign: 'center',
-                  fontSize: 12, color: 'rgba(255,255,255,0.3)',
-                }}>
-                  No products match "{productSearch}"
-                </div>
-              ) : (
-                filteredProducts.map((p, idx) => {
-                  const isActive = product === p;
-                  return (
-                    <button
-                      key={p}
-                      onClick={() => onProductChange(p)}
-                      title={p}
+          {/* ══ STEP 3 — Product ══ */}
+          <div style={{ marginBottom: 26 }}>
+            <SectionHeader
+              label="Product"
+              count={`${productList.length} products`}
+              badge={product || null}
+              accent={accent}
+            />
+
+            {/* Guard: must have oem selected (or single-oem practice) */}
+            {(!oem && !skipOem) ? (
+              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', padding: '10px 0' }}>
+                ← Select an OEM / Vendor first
+              </div>
+            ) : (
+              <>
+                {/* Search box — only when >6 products */}
+                {productList.length > 6 && (
+                  <div style={{ position: 'relative', marginBottom: 10 }}>
+                    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8"
+                      style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', width: 14, height: 14, color: 'rgba(255,255,255,0.35)', pointerEvents: 'none' }}>
+                      <circle cx="9" cy="9" r="6"/><path d="M15 15l-3.5-3.5"/>
+                    </svg>
+                    <input
+                      type="text"
+                      placeholder="Search products…"
+                      value={productSearch}
+                      onChange={e => setProductSearch(e.target.value)}
                       style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        width: '100%',
-                        padding: '10px 16px',
-                        borderRadius: 0,
-                        cursor: 'pointer',
-                        fontSize: 13,
-                        fontWeight: isActive ? 700 : 400,
-                        textAlign: 'left',
-                        borderTop: idx === 0 ? 'none' : '1px solid rgba(255,255,255,0.07)',
-                        borderLeft: 'none', borderRight: 'none', borderBottom: 'none',
-                        background: isActive ? `${accent.color}28` : 'transparent',
-                        color: isActive ? accent.color : 'rgba(255,255,255,0.8)',
-                        transition: 'background .12s',
-                        boxSizing: 'border-box',
+                        width: '100%', padding: '8px 12px 8px 32px', borderRadius: 8,
+                        border: '1.5px solid rgba(255,255,255,0.14)', background: 'rgba(255,255,255,0.07)',
+                        color: '#fff', fontSize: 12.5, outline: 'none', boxSizing: 'border-box',
+                        transition: 'border-color .15s',
                       }}
-                      onMouseEnter={e => {
-                        if (!isActive) e.currentTarget.style.background = 'rgba(255,255,255,0.07)';
-                      }}
-                      onMouseLeave={e => {
-                        if (!isActive) e.currentTarget.style.background = 'transparent';
-                      }}
-                    >
-                      <span style={{
-                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1,
-                      }}>
-                        {p}
-                      </span>
-                      {isActive && (
-                        <svg viewBox="0 0 16 16" fill="currentColor" style={{ width: 14, height: 14, flexShrink: 0, marginLeft: 8 }}>
-                          <path fillRule="evenodd" d="M13.78 4.22a.75.75 0 010 1.06l-7.25 7.25a.75.75 0 01-1.06 0L2.22 9.28a.75.75 0 011.06-1.06L6 10.94l6.72-6.72a.75.75 0 011.06 0z"/>
-                        </svg>
-                      )}
-                    </button>
-                  );
-                })
-              )}
-            </div>
+                      onFocus={e => e.currentTarget.style.borderColor = accent.color + 'aa'}
+                      onBlur={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.14)'}
+                    />
+                    {productSearch && (
+                      <button onClick={() => setProductSearch('')} style={{
+                        position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
+                        background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.4)', padding: 0, fontSize: 14,
+                      }}>×</button>
+                    )}
+                  </div>
+                )}
+
+                {/* Product list */}
+                <div style={{ border: '1.5px solid rgba(255,255,255,0.1)', borderRadius: 10, overflow: 'hidden', maxHeight: 190, overflowY: 'auto' }}>
+                  {filteredProducts.length === 0 ? (
+                    <div style={{ padding: '22px 16px', textAlign: 'center', fontSize: 12, color: 'rgba(255,255,255,0.3)' }}>
+                      {productList.length === 0 ? 'No products in this category yet.' : `No products match "${productSearch}"`}
+                    </div>
+                  ) : (
+                    filteredProducts.map((p, idx) => {
+                      const isActive = product === p;
+                      return (
+                        <button
+                          key={p}
+                          onClick={() => onProductChange(p)}
+                          title={p}
+                          style={{
+                            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                            width: '100%', padding: '10px 16px', borderRadius: 0,
+                            cursor: 'pointer', fontSize: 13,
+                            fontWeight: isActive ? 700 : 400, textAlign: 'left',
+                            borderTop: idx === 0 ? 'none' : '1px solid rgba(255,255,255,0.07)',
+                            borderLeft: 'none', borderRight: 'none', borderBottom: 'none',
+                            background: isActive ? `${accent.color}28` : 'transparent',
+                            color: isActive ? accent.color : 'rgba(255,255,255,0.8)',
+                            transition: 'background .12s', boxSizing: 'border-box',
+                          }}
+                          onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = 'rgba(255,255,255,0.07)'; }}
+                          onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'transparent'; }}
+                        >
+                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{p}</span>
+                          {isActive && (
+                            <svg viewBox="0 0 16 16" fill="currentColor" style={{ width: 14, height: 14, flexShrink: 0, marginLeft: 8 }}>
+                              <path fillRule="evenodd" d="M13.78 4.22a.75.75 0 010 1.06l-7.25 7.25a.75.75 0 01-1.06 0L2.22 9.28a.75.75 0 011.06-1.06L6 10.94l6.72-6.72a.75.75 0 011.06 0z"/>
+                            </svg>
+                          )}
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+              </>
+            )}
           </div>
         </div>{/* end scrollable body */}
 
-        {/* ── Launch button — always pinned at bottom of card ── */}
-        <div style={{
-          padding: '16px 36px 24px',
-          borderTop: '1px solid rgba(255,255,255,0.08)',
-          flexShrink: 0,
-          background: 'transparent',
-        }}>
+        {/* ── Launch button ── */}
+        <div style={{ padding: '14px 36px 22px', borderTop: '1px solid rgba(255,255,255,0.08)', flexShrink: 0 }}>
+          {/* Helper text — tells user what's still missing */}
+          {(!practice || !oem || !product) && (
+            <div style={{
+              textAlign: 'center', fontSize: 11.5, marginBottom: 10,
+              color: 'rgba(255,255,255,0.4)', letterSpacing: .2,
+            }}>
+              {!practice ? '← Select a Practice to continue'
+                : !oem    ? '← Select an OEM / Vendor to continue'
+                :            '← Select a Product to continue'}
+            </div>
+          )}
           <button
             onClick={onLaunch}
-            disabled={!product}
+            disabled={!practice || !oem || !product}
             style={{
-              width: '100%',
-              padding: '13px 0',
-              borderRadius: 10,
-              border: 'none',
-              cursor: product ? 'pointer' : 'not-allowed',
-              background: product ? accent.color : 'var(--card-border)',
-              color: '#fff',
-              fontSize: 13.5,
-              fontWeight: 700,
-              letterSpacing: .6,
-              transition: 'all .2s',
-              opacity: product ? 1 : 0.5,
+              width: '100%', padding: '13px 0', borderRadius: 10, border: 'none',
+              cursor: (practice && oem && product) ? 'pointer' : 'not-allowed',
+              background: (practice && oem && product) ? accent.color : 'rgba(255,255,255,0.08)',
+              color: (practice && oem && product) ? '#fff' : 'rgba(255,255,255,0.25)',
+              fontSize: 13.5, fontWeight: 700, letterSpacing: .6,
+              transition: 'all .2s', opacity: (practice && oem && product) ? 1 : 0.5,
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
             }}
-            onMouseEnter={e => { if (product) e.currentTarget.style.opacity = '.82'; }}
-            onMouseLeave={e => { if (product) e.currentTarget.style.opacity = '1'; }}
+            onMouseEnter={e => { if (practice && oem && product) e.currentTarget.style.opacity = '.82'; }}
+            onMouseLeave={e => { if (practice && oem && product) e.currentTarget.style.opacity = '1'; }}
           >
             <svg viewBox="0 0 20 20" fill="currentColor" style={{ width: 15, height: 15, flexShrink: 0 }}>
               <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd"/>
             </svg>
             Open Dashboard
           </button>
-
-          {/* ── Footer ── */}
-          <div style={{
-            marginTop: 12, textAlign: 'center',
-            fontSize: 10.5, color: 'rgba(255,255,255,0.25)', letterSpacing: .3,
-          }}>
+          <div style={{ marginTop: 10, textAlign: 'center', fontSize: 10.5, color: 'rgba(255,255,255,0.25)', letterSpacing: .3 }}>
             For internal use only · © 2025 Lauren Group
           </div>
         </div>
@@ -772,28 +867,35 @@ function AdminDashboard({ onAddProduct, onManagePractices, onLogout }) {
           Dashboard Settings
         </div>
         {/* Win / Loss toggle */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, marginBottom: 14 }}>
           <div>
             <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 2 }}>Win / Loss Section</div>
-            <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-              Show Win/Loss in the Overview page and sidebar navigation.
-            </div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Show Win/Loss in the Overview page and sidebar navigation.</div>
           </div>
-          {/* Toggle switch */}
           <button
             onClick={() => setSetting('winLossEnabled', !settings.winLossEnabled)}
             aria-pressed={settings.winLossEnabled}
-            style={{
-              width: 46, height: 26, borderRadius: 13, border: 'none', cursor: 'pointer', flexShrink: 0,
-              background: settings.winLossEnabled ? '#2dca6e' : 'var(--card-border)',
-              position: 'relative', transition: 'background .2s',
-            }}
+            style={{ width: 46, height: 26, borderRadius: 13, border: 'none', cursor: 'pointer', flexShrink: 0, background: settings.winLossEnabled ? '#2dca6e' : 'var(--card-border)', position: 'relative', transition: 'background .2s' }}
           >
-            <span style={{
-              position: 'absolute', top: 3, left: settings.winLossEnabled ? 23 : 3,
-              width: 20, height: 20, borderRadius: '50%', background: '#fff',
-              transition: 'left .2s', boxShadow: '0 1px 3px rgba(0,0,0,.25)',
-            }} />
+            <span style={{ position: 'absolute', top: 3, left: settings.winLossEnabled ? 23 : 3, width: 20, height: 20, borderRadius: '50%', background: '#fff', transition: 'left .2s', boxShadow: '0 1px 3px rgba(0,0,0,.25)' }} />
+          </button>
+        </div>
+
+        {/* Divider */}
+        <div style={{ height: 1, background: 'var(--card-border)', margin: '2px 0 14px' }} />
+
+        {/* TCO Comparison toggle */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 2 }}>TCO Comparison Section</div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Show TCO Comparison in the sidebar navigation and Overview page.</div>
+          </div>
+          <button
+            onClick={() => setSetting('tcoEnabled', !settings.tcoEnabled)}
+            aria-pressed={settings.tcoEnabled}
+            style={{ width: 46, height: 26, borderRadius: 13, border: 'none', cursor: 'pointer', flexShrink: 0, background: settings.tcoEnabled ? '#2dca6e' : 'var(--card-border)', position: 'relative', transition: 'background .2s' }}
+          >
+            <span style={{ position: 'absolute', top: 3, left: settings.tcoEnabled ? 23 : 3, width: 20, height: 20, borderRadius: '50%', background: '#fff', transition: 'left .2s', boxShadow: '0 1px 3px rgba(0,0,0,.25)' }} />
           </button>
         </div>
       </div>
@@ -812,8 +914,17 @@ function AdminDashboard({ onAddProduct, onManagePractices, onLogout }) {
 function AppInner() {
   const [activeNav, setActiveNav]   = useState('overview');
   const [theme, setTheme]           = useState('light');
-  const [practice, setPractice]     = useState('IBM');
-  const [product, setProduct]       = useState('Instana');
+
+  // ── Confirmed selection (drives the dashboard data) ──────────────────
+  const [practice, setPractice]     = useState('');
+  const [oem, setOem]               = useState('');
+  const [product, setProduct]       = useState('');
+
+  // ── Pending selection (filter bar dropdowns — not applied until all 3 set) ──
+  const [pendingPractice, setPendingPractice] = useState('');
+  const [pendingOem, setPendingOem]           = useState('');
+  const [pendingProduct, setPendingProduct]   = useState('');
+
   const [launched, setLaunched]     = useState(false);
   const [data, setData]             = useState(null);
   const [dataLoading, setDataLoading] = useState(false);
@@ -825,8 +936,8 @@ function AppInner() {
 
   // SSE — listen for real-time product additions/updates
   useSSE({
-    product_added: ({ practice: p, product: prod }) => {
-      addProductToList(p, prod);
+    product_added: ({ practice: p, product: prod, oem: o }) => {
+      addProductToList(p, prod, o);
       invalidateProduct(p, prod);
       // If the currently displayed product was just updated, reload its data
       if (p === practice && prod === product) {
@@ -858,6 +969,30 @@ function AppInner() {
       setTheme(t => (t === 'dark' ? 'dark' : 'light'));
     }
   }, [practice]);
+
+  // Auto-select first practice+oem+product once practices load from API
+  useEffect(() => {
+    if (!Object.keys(practices).length) return;
+    if (practice) return; // already selected
+    const pracList = Object.keys(practices).filter(p => {
+      const om = practices[p] || {};
+      return Object.values(om).some(arr => arr.length > 0);
+    });
+    if (!pracList.length) return;
+    const firstPrac = pracList[0];
+    const firstOemMap = practices[firstPrac] || {};
+    const firstOemList = Object.keys(firstOemMap);
+    const firstOem = firstOemList[0] || firstPrac;
+    const firstProduct = (firstOemMap[firstOem] || [])[0] || '';
+    // Set both confirmed + pending to first available
+    setPractice(firstPrac); setOem(firstOem); setProduct(firstProduct);
+    setPendingPractice(firstPrac); setPendingOem(firstOem); setPendingProduct(firstProduct);
+  }, [practices]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Keep pending dropdowns in sync with confirmed state
+  useEffect(() => { setPendingPractice(practice); }, [practice]);
+  useEffect(() => { setPendingOem(oem); }, [oem]);
+  useEffect(() => { setPendingProduct(product); }, [product]);
 
   // Load product data whenever practice/product changes.
   // NOTE: getProductData is intentionally excluded from deps — it is a stable
@@ -901,26 +1036,87 @@ function AppInner() {
     return () => { cancelled = true; };
   }, [practice, product]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const products = (practices[practice] || PRODUCTS_BY_PRACTICE[practice] || []);
+  // Derive flat product list for the currently selected practice+oem
+  const oemMap = practices[practice] || {};
+  const oemList = Object.keys(oemMap);
+  const activeOem = oem || (oemList.length === 1 ? oemList[0] : '');
+  const products = (activeOem && oemMap[activeOem]) ? oemMap[activeOem]
+    : oemList.flatMap(o => oemMap[o] || []); // fallback: all products in practice
 
+  // Only pass practices that have at least one product — no empty slots shown
+  const practicesWithData = Object.fromEntries(
+    Object.entries(practices).filter(([, oemObj]) =>
+      Object.values(oemObj || {}).some(arr => Array.isArray(arr) && arr.length > 0)
+    )
+  );
+
+  // Flat practice list for the dashboard filter bar (header dropdown)
+  const practicesList = Object.keys(practicesWithData).length
+    ? Object.keys(practicesWithData)
+    : Object.keys(practices);
+
+  // ── Welcome screen handlers — update confirmed state directly ────────────
   const handlePracticeChange = useCallback((p) => {
-    setPractice(p);
-    const list = practices[p] || PRODUCTS_BY_PRACTICE[p] || [];
-    setProduct(list[0] || '');
+    setPractice(p); setPendingPractice(p);
+    setOem(''); setPendingOem('');
+    setProduct(''); setPendingProduct('');
+    // Auto-select if only one OEM
+    const newOemMap = practices[p] || {};
+    const newOemList = Object.keys(newOemMap);
+    if (newOemList.length === 1) {
+      setOem(newOemList[0]); setPendingOem(newOemList[0]);
+      const prods = newOemMap[newOemList[0]] || [];
+      setProduct(prods[0] || ''); setPendingProduct(prods[0] || '');
+    }
   }, [practices]);
 
+  const handleOemChange = useCallback((o) => {
+    setOem(o); setPendingOem(o);
+    const oemProds = (practices[practice] || {})[o] || [];
+    setProduct(oemProds[0] || ''); setPendingProduct(oemProds[0] || '');
+  }, [practices, practice]);
+
   const handleProductChange = useCallback((p) => {
-    setProduct(p);
+    setProduct(p); setPendingProduct(p);
   }, []);
 
+  // ── Filter bar handlers — directly update confirmed state immediately ─────
+  const handlePendingPracticeChange = useCallback((p) => {
+    setPendingPractice(p); setPractice(p);
+    const newOemMap = practices[p] || {};
+    const newOemList = Object.keys(newOemMap);
+    const firstOem = newOemList[0] || '';
+    const firstProd = (newOemMap[firstOem] || [])[0] || '';
+    setPendingOem(firstOem);   setOem(firstOem);
+    setPendingProduct(firstProd); setProduct(firstProd);
+  }, [practices]);
+
+  const handlePendingOemChange = useCallback((o) => {
+    setPendingOem(o); setOem(o);
+    const oemProds = (practices[pendingPractice] || {})[o] || [];
+    const firstProd = oemProds[0] || '';
+    setPendingProduct(firstProd); setProduct(firstProd);
+  }, [practices, pendingPractice]);
+
+  const handlePendingProductChange = useCallback((p) => {
+    setPendingProduct(p); setProduct(p);
+  }, []);
+
+  const handleApplySelection = useCallback(() => {}, []);
+
+  // Never pending — auto-applies immediately
+  const selectionPending = false;
+  const pendingComplete  = !!(pendingPractice && pendingOem && pendingProduct);
+
   const dateStr = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-  const practicesList = Object.keys(practices).length ? Object.keys(practices) : PRACTICES;
 
   const isAws = practice === 'AWS';
   const { settings } = useSettings();
-  const NAV_ITEMS = (isAws ? NAV_ITEMS_AWS : NAV_ITEMS_IBM).filter(
-    item => item.id !== 'winloss' || settings.winLossEnabled
-  );
+  const NAV_ITEMS = (isAws ? NAV_ITEMS_AWS : NAV_ITEMS_IBM).filter(item => {
+    if (item.id === 'winloss' && !settings.winLossEnabled) return false;
+    if (item.id === 'tco'     && !settings.tcoEnabled)     return false;
+    return true;
+  });
 
   // ── Welcome / Selection screen ────────────────────────────────────────
   if (!launched) {
@@ -929,13 +1125,14 @@ function AppInner() {
         theme={theme}
         setTheme={setTheme}
         practice={practice}
+        oem={activeOem}
         product={product}
-        products={products}
+        practicesMap={practicesWithData}
         onPracticeChange={handlePracticeChange}
+        onOemChange={handleOemChange}
         onProductChange={handleProductChange}
         onLaunch={() => setLaunched(true)}
         loading={loading}
-        practicesList={practicesList}
       />
     );
   }
@@ -1037,7 +1234,7 @@ function AppInner() {
       case 'objections2':   return <ObjectionHandlingPage data={data} />;
       case 'aws-exec':      return <OverviewPage data={data} />;
       // ── Shared nav IDs (IBM + AWS) ────────────────────────────────────
-      case 'overview':    return <OverviewPage data={data} />;
+      case 'overview':    return <OverviewPage data={data} tcoEnabled={settings.tcoEnabled} />;
       case 'product':     return <ProductDetailsPage data={data} />;
       case 'competitive': return <CompetitiveAnalysisPage data={data} />;
       case 'tco':         return <TcoComparisonPage data={data} />;
@@ -1046,7 +1243,7 @@ function AppInner() {
       case 'objections':  return <ObjectionHandlingPage data={data} />;
       case 'winloss':     return <WinLossPage data={data} />;
       case 'coach':       return <AiSalesCoachPage data={data} onNavigate={setActiveNav} />;
-      default:            return isAws ? <AwsDashboardPage data={data} /> : <OverviewPage data={data} />;
+      default:            return isAws ? <AwsDashboardPage data={data} /> : <OverviewPage data={data} tcoEnabled={settings.tcoEnabled} />;
     }
   }
 
@@ -1194,28 +1391,43 @@ function AppInner() {
 
         {/* Filter Bar */}
         <div className="filter-bar">
+          {/* Practice */}
           <div className="filter-group">
             <span className="filter-label">Practice</span>
-            <select className="filter-select" value={practice} onChange={(e) => handlePracticeChange(e.target.value)}>
-                {practicesList.map((p) => <option key={p}>{p}</option>)}
-              </select>
-          </div>
-          <div className="filter-divider" />
-          <div className="filter-group">
-            <span className="filter-label">Product</span>
-            <select className="filter-select" value={product} onChange={(e) => handleProductChange(e.target.value)}>
-              {products.map((p) => <option key={p}>{p}</option>)}
+            <select className="filter-select" value={practice} onChange={(e) => handlePendingPracticeChange(e.target.value)}>
+              {practicesList.map((p) => <option key={p}>{p}</option>)}
             </select>
           </div>
           <div className="filter-divider" />
+          {/* OEM */}
           <div className="filter-group">
-            <span className="filter-label">vs. Competitors</span>
-            <div className="competitors-display">{data.competitors}</div>
+            <span className="filter-label">OEM</span>
+            <select className="filter-select" value={oem} onChange={(e) => handlePendingOemChange(e.target.value)}>
+              <option value="">— select OEM —</option>
+              {Object.keys((practicesWithData[practice] || practices[practice]) || {}).map((o) => <option key={o}>{o}</option>)}
+            </select>
           </div>
+          <div className="filter-divider" />
+          {/* Product */}
+          <div className="filter-group">
+            <span className="filter-label">Product</span>
+            <select className="filter-select" value={product} onChange={(e) => handlePendingProductChange(e.target.value)}>
+              <option value="">— select product —</option>
+              {((practicesWithData[practice] || practices[practice] || {})[oem] || []).map((p) => <option key={p}>{p}</option>)}
+            </select>
+          </div>
+          <div className="filter-divider" />
+          {/* vs Competitors — only shown when confirmed selection active */}
+          {!selectionPending && (
+            <div className="filter-group">
+              <span className="filter-label">vs. Competitors</span>
+              <div className="competitors-display">{data.competitors}</div>
+            </div>
+          )}
           <div style={{ marginLeft: 'auto' }}>
             <button
               className="refresh-btn"
-              onClick={() => setLaunched(false)}
+              onClick={() => { setPendingOem(''); setPendingProduct(''); setOem(''); setProduct(''); setLaunched(false); }}
               style={{ gap: 5 }}
             >
               <svg viewBox="0 0 16 16" fill="currentColor" style={{ width: 12, height: 12 }}>
@@ -1228,8 +1440,8 @@ function AppInner() {
 
         {/* Page Content */}
         <div className="page-content" style={{ position: 'relative' }}>
-          {/* Loading overlay — shown while switching practice/product, keeps layout intact */}
-          {dataLoading && (
+          {/* Loading overlay — shown while fetching data */}
+          {!selectionPending && dataLoading && (
             <div style={{
               position: 'absolute', inset: 0, zIndex: 50,
               background: 'var(--bg)',

@@ -253,7 +253,7 @@ export default function OverviewPage({ data }) {
           {[
             ...(settings.winLossEnabled ? [{ label: 'Win Rate', val: winRate ? `${winRate}%` : '—', color: 'var(--blue)', bg: 'var(--blue-lt)' }] : []),
             { label: 'Customers',           val: (keyCustomers||[]).length || '—',            color: 'var(--green)',  bg: 'var(--green-lt)' },
-            { label: 'TCO Advantage',       val: tcoAdvantage || '—',                         color: 'var(--orange)', bg: 'var(--orange-lt)' },
+            ...(settings.tcoEnabled ? [{ label: 'TCO Advantage', val: tcoAdvantage || '—', color: 'var(--orange)', bg: 'var(--orange-lt)' }] : []),
             { label: 'Competitors Tracked', val: (competitorSummary||[]).length || '—',       color: 'var(--purple)', bg: 'var(--purple-lt)' },
           ].map((k) => (
             <div key={k.label} style={{ textAlign: 'center', padding: '8px 15px', borderRadius: 8, background: k.bg, border: `1px solid ${k.color}33`, minWidth: 76 }}>
@@ -487,7 +487,7 @@ export default function OverviewPage({ data }) {
           </div>
 
           {/* Feature Matrix + TCO side by side */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: 10, alignItems: 'start' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: settings.tcoEnabled ? '1fr 320px' : '1fr', gap: 10, alignItems: 'start' }}>
 
             {/* Feature Matrix */}
             <div style={card}>
@@ -530,7 +530,8 @@ export default function OverviewPage({ data }) {
               </div>
             </div>
 
-            {/* TCO */}
+            {/* TCO — only shown when enabled by admin */}
+            {settings.tcoEnabled && (
             <div style={card}>
               <SectionLabel color="var(--green)">3-Year TCO Comparison</SectionLabel>
               <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>Total TCO (3 Years)</div>
@@ -577,6 +578,7 @@ export default function OverviewPage({ data }) {
                 </table>
               </div>
             </div>
+            )}
 
           </div>
 

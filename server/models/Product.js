@@ -154,6 +154,7 @@ const ExecutiveMessagingSchema = new mongoose.Schema({
 const ProductSchema = new mongoose.Schema(
   {
     practice: { type: String, required: true, index: true },
+    oem:      { type: String, default: '',    index: true },  // vendor/brand layer (IBM, CrowdStrike, etc.)
     product: { type: String, required: true, index: true },
     competitors: { type: String, default: '' },
 

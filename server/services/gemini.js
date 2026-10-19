@@ -1,107 +1,74 @@
 /**
- * AI service — Google Gemini REST API (direct HTTPS, no SDK dependency).
- * Exported interface is unchanged:
- *   generateProductData(productName, practice, description, competitorNames, rawData, jobId)
- *   generateCompetitorProfile(competitorName, productName, practice)
- *   generateWithFallback(prompt)
+ * AI service — Ollama Cloud REST API (direct HTTPS, no SDK).
+ * Permanent key, never expires.
+ * Exported interface unchanged:
+ *   generateProductData / generateCompetitorProfile / generateWithFallback / generateAccurate
  */
 
 require('dotenv').config({ path: require('path').join(__dirname, '../.env') });
 const https = require('https');
 const sse   = require('../utils/sseEmitter');
 
-// ── Key read lazily so dotenv is fully loaded before first request ────────────
 function getApiKey() {
-  const key = process.env.GEMINI_API_KEY;
-  if (!key) throw new Error('GEMINI_API_KEY is not set. Add it in server/.env and in the Render Environment tab.');
+  const key = process.env.OLLAMA_API_KEY;
+  if (!key) throw new Error('OLLAMA_API_KEY is not set in server/.env');
   return key;
 }
 
-// ── Model priority — most capable first for accuracy, fallback on quota / 503 ─
-const MODELS = [
-  'gemini-2.5-flash',
-  'gemini-2.0-flash',
-  'gemini-2.5-flash-lite',
-  'gemini-2.0-flash-lite',
-  'gemini-1.5-flash',
-];
-
-// ── High-accuracy model list — used for file extraction (quality over speed) ──
-const MODELS_ACCURATE = [
-  'gemini-2.5-flash',
-  'gemini-2.0-flash',
-  'gemini-1.5-flash',
-  'gemini-2.5-flash-lite',
-];
+const MODELS = ['gemma4:31b'];
+const MODELS_ACCURATE = ['gemma4:31b'];
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-// ─── Single Gemini REST call ──────────────────────────────────────────────────
-// POST https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={KEY}
-function callGemini(model, prompt, timeoutMs = 180000, maxOutputTokens = 65536) {
+function callAI(model, prompt, timeoutMs = 180000) {
   return new Promise((resolve, reject) => {
     const body = JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: { temperature: 0, maxOutputTokens },
+      model,
+      messages: [{ role: 'user', content: prompt }],
+      stream: false,
     });
 
-    const path = `/v1beta/models/${model}:generateContent?key=${getApiKey()}`;
-
-    const req = https.request(
-      {
-        hostname: 'generativelanguage.googleapis.com',
-        path,
-        method:  'POST',
-        headers: {
-          'Content-Type':   'application/json',
-          'Content-Length': Buffer.byteLength(body),
-        },
+    const req = https.request({
+      hostname: 'ollama.com',
+      path:     '/api/chat',
+      method:   'POST',
+      headers:  {
+        'Content-Type':   'application/json',
+        'Content-Length': Buffer.byteLength(body),
+        'Authorization':  `Bearer ${getApiKey()}`,
       },
-      (res) => {
-        let raw = '';
-        res.on('data', (chunk) => { raw += chunk; });
-        res.on('end', () => {
-          if (res.statusCode >= 400) {
-            return reject(new Error(`Gemini ${res.statusCode} (${model}): ${raw.slice(0, 400)}`));
-          }
-          try {
-            const json = JSON.parse(raw);
-            // Handle safety / finish-reason blocks
-            const candidate = json.candidates?.[0];
-            if (!candidate) {
-              return reject(new Error('Gemini: no candidates returned. ' + raw.slice(0, 200)));
-            }
-            const text = candidate.content?.parts?.[0]?.text;
-            if (!text) return reject(new Error('Gemini: empty text in response. ' + raw.slice(0, 200)));
-            resolve(text);
-          } catch (e) {
-            reject(new Error('Gemini JSON parse error: ' + raw.slice(0, 200)));
-          }
-        });
-      }
-    );
+    }, (res) => {
+      let raw = '';
+      res.on('data', (c) => { raw += c; });
+      res.on('end', () => {
+        if (res.statusCode >= 400) {
+          return reject(new Error(`Ollama ${res.statusCode} (${model}): ${raw.slice(0, 400)}`));
+        }
+        try {
+          const json = JSON.parse(raw);
+          const text = json.message?.content;
+          if (!text) return reject(new Error('Ollama: empty response. ' + raw.slice(0, 200)));
+          resolve(text.trim());
+        } catch (e) {
+          reject(new Error('Ollama JSON parse error: ' + raw.slice(0, 200)));
+        }
+      });
+    });
 
     req.on('error', reject);
-
-    // Hard timeout — Gemini can hang on Render's free tier
     const timer = setTimeout(() => {
-      req.destroy(new Error(`Gemini timeout after ${timeoutMs / 1000}s (${model})`));
+      req.destroy(new Error(`HF timeout after ${timeoutMs / 1000}s`));
     }, timeoutMs);
     req.on('close', () => clearTimeout(timer));
-
     req.write(body);
     req.end();
   });
 }
 
-// ─── Retry across models on quota / transient errors ─────────────────────────
-// Also handles "model no longer available, use X instead" redirects
 async function generateWithFallback(prompt, modelList) {
-  // Build a dynamic list: start with our priority list, then add any
-  // models suggested in redirect error messages
-  const tried   = new Set();
-  const queue   = [...(modelList || MODELS)];
-  let   lastErr;
+  const tried = new Set();
+  const queue = [...(modelList || MODELS)];
+  let lastErr;
 
   while (queue.length > 0) {
     const model = queue.shift();
@@ -110,260 +77,94 @@ async function generateWithFallback(prompt, modelList) {
 
     for (let attempt = 1; attempt <= 2; attempt++) {
       try {
-        return await callGemini(model, prompt);
+        return await callAI(model, prompt);
       } catch (err) {
         const msg = err.message || '';
-
-        // If Gemini suggests a replacement model, add it to the front of queue
-        const redirect = msg.match(/use models\/([\w\d.\-]+)/i) ||
-                         msg.match(/update.*to use models\/([\w\d.\-]+)/i);
-        if (redirect) {
-          const suggested = redirect[1];
-          if (!tried.has(suggested)) queue.unshift(suggested);
-        }
-
-        const isTransient =
-          msg.includes('429') || msg.includes('503') ||
-          msg.includes('timeout') || msg.includes('UNAVAILABLE') ||
-          msg.includes('overloaded') || msg.includes('RESOURCE_EXHAUSTED');
-        const isNotFound =
-          msg.includes('404') || msg.includes('not found') ||
-          msg.includes('MODEL_NOT_FOUND') || msg.includes('is not supported') ||
-          msg.includes('no longer available');
-
+        const isTransient = msg.includes('503') || msg.includes('loading') ||
+          msg.includes('timeout') || msg.includes('429') || msg.includes('overloaded');
+        const isNotFound = msg.includes('404') || msg.includes('not found');
         lastErr = err;
-        if (isNotFound) break;                          // try next model
-        if (isTransient && attempt === 1) { await sleep(2000); continue; }
-        if (isTransient) break;                         // try next model
-        throw err;                                      // hard error — surface it
+        if (isNotFound) break;
+        if (isTransient && attempt === 1) { await sleep(3000); continue; }
+        if (isTransient) break;
+        throw err;
       }
     }
   }
-  throw lastErr || new Error('All Gemini models failed');
+  throw lastErr || new Error('All HF models failed');
 }
 
-// ─── Parse AI JSON response (strips markdown fences if present) ──────────────
 function parseAiJSON(text) {
   let cleaned = text.trim();
+  // Extract JSON from the response (model may add explanation before/after)
+  const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+  if (jsonMatch) cleaned = jsonMatch[0];
   if (cleaned.startsWith('```')) {
     cleaned = cleaned.replace(/^```[a-z]*\n?/i, '').replace(/```\s*$/i, '').trim();
   }
   return JSON.parse(cleaned);
 }
 
-// ─── Prompt builders ──────────────────────────────────────────────────────────
 function buildProductPrompt(productName, practice, description, competitorNames, rawData) {
-  const competitorList = competitorNames.length > 0 ? competitorNames.join(', ') : 'Not specified';
-
+  // If no competitors provided, ask AI to infer real ones from the product name
+  const competitorList = competitorNames.length > 0
+    ? competitorNames.join(', ')
+    : `the 2 most well-known real competitors of ${productName} in the market (infer from your knowledge — use real company/product names, NOT "Competitor1" or "Competitor2")`;
   let rawSection = '';
   if (rawData) {
-    const content = rawData.text || rawData.combined ||
-      (typeof rawData === 'string' ? rawData : JSON.stringify(rawData, null, 2));
-    const truncated = content.length > 12000 ? content.slice(0, 12000) + '\n...[truncated]' : content;
-    const fileInfo  = rawData.fileCount
-      ? `${rawData.fileCount} file(s): ${rawData.fileNames.join(', ')}`
-      : (rawData.filename || 'uploaded file');
-    rawSection = `\n\nADDITIONAL CONTEXT FROM UPLOADED FILES (${fileInfo}) — use this to enrich your response:\n${truncated}`;
+    const content = rawData.text || rawData.combined || (typeof rawData === 'string' ? rawData : JSON.stringify(rawData, null, 2));
+    const truncated = content.length > 8000 ? content.slice(0, 8000) + '\n...[truncated]' : content;
+    rawSection = `\n\nCONTEXT FROM FILES:\n${truncated}`;
   }
-
-  return `You are a senior product intelligence analyst. Generate a comprehensive product intelligence document for a sales dashboard.
+  return `<s>[INST] You are a product intelligence analyst. Generate data for a sales dashboard.
 
 PRODUCT: ${productName}
-PRACTICE/COMPANY: ${practice}
-DESCRIPTION: ${description || 'Not provided — infer from product name and industry knowledge'}
+PRACTICE: ${practice}
+DESCRIPTION: ${description || 'Infer from product name'}
 COMPETITORS: ${competitorList}
 ${rawSection}
 
-Return ONLY a valid JSON object (no markdown, no explanation, just raw JSON) with EXACTLY this structure:
+Return ONLY a valid JSON object. No explanation, no markdown, no backticks. Start your response with { and end with }.
 
-{
-  "overview": {
-    "logo": "<single emoji representing the product>",
-    "name": "${productName.toUpperCase()}",
-    "category": "<product category e.g. Cloud Security / APM / Messaging>",
-    "deployment": "<e.g. SaaS / On-Prem / Hybrid>",
-    "targetUsers": "<e.g. DevOps, Security Teams, IT Ops>",
-    "productLaunch": "<year>",
-    "marketPosition": "<e.g. Leader (Gartner Magic Quadrant)>",
-    "description": "<2-3 sentence product description>"
-  },
-  "keyFeatures": [
-    { "icon": "<emoji>", "name": "<feature name>", "description": "<one line>" }
-  ],
-  "discoveryQuestions": ["<question 1>", "<question 2>", "<question 3>", "<question 4>", "<question 5>"],
-  "recommendedResponses": ["<response 1>", "<response 2>", "<response 3>", "<response 4>", "<response 5>"],
-  "strengths": ["<strength 1>", "<strength 2>", "<strength 3>", "<strength 4>", "<strength 5>", "<strength 6>"],
-  "weaknesses": ["<weakness 1>", "<weakness 2>", "<weakness 3>", "<weakness 4>"],
-  "caseStudies": [
-    { "icon": "<emoji>", "customer": "<Customer Type>", "type": "<Industry>", "challenge": "<challenge>", "result": "<quantified result>" },
-    { "icon": "<emoji>", "customer": "<Customer Type>", "type": "<Industry>", "challenge": "<challenge>", "result": "<quantified result>" },
-    { "icon": "<emoji>", "customer": "<Customer Type>", "type": "<Industry>", "challenge": "<challenge>", "result": "<quantified result>" }
-  ],
-  "keyCustomers": [
-    { "logo": "<emoji>", "name": "<company name>", "industry": "<industry>", "color": "<hex color>" },
-    { "logo": "<emoji>", "name": "<company name>", "industry": "<industry>", "color": "<hex color>" },
-    { "logo": "<emoji>", "name": "<company name>", "industry": "<industry>", "color": "<hex color>" },
-    { "logo": "<emoji>", "name": "<company name>", "industry": "<industry>", "color": "<hex color>" },
-    { "logo": "<emoji>", "name": "<company name>", "industry": "<industry>", "color": "<hex color>" }
-  ],
-  "competitorSummary": [
-    {
-      "name": "${competitorNames[0] || 'Competitor 1'}",
-      "logo": "<emoji>",
-      "color": "<hex>",
-      "marketPosition": "<Leader/Challenger/Niche>",
-      "overview": "<2 sentence overview>",
-      "strengths": ["<s1>", "<s2>", "<s3>"],
-      "weaknesses": ["<w1>", "<w2>", "<w3>"],
-      "ourEdge": ["<how ${productName} leads vs this competitor — point 1>", "<point 2>", "<point 3>", "<point 4>", "<point 5>"],
-      "pricingSummary": "<pricing overview>"
-    }
-  ],
-  "featureMatrix": {
-    "labels": { "product": "${productName}", "comp1": "${competitorNames[0] || 'Competitor 1'}", "comp2": "${competitorNames[1] || 'Competitor 2'}" },
-    "rows": [
-      { "feature": "<feature name>", "product": "green", "comp1": "yellow", "comp2": "red" }
-    ]
-  },
-  "tcoData": {
-    "labels": { "product": "${productName}", "comp1": "${competitorNames[0] || 'Competitor 1'}", "comp2": "${competitorNames[1] || 'Competitor 2'}" },
-    "maxValue": 800,
-    "totals": { "product": "$XXXk", "comp1": "$XXXk", "comp2": "$XXXk" },
-    "rows": [
-      { "component": "Licensing",      "product": "$XXXk", "comp1": "$XXXk", "comp2": "$XXXk" },
-      { "component": "Implementation", "product": "$XXXk", "comp1": "$XXXk", "comp2": "$XXXk" },
-      { "component": "Support",        "product": "$XXXk", "comp1": "$XXXk", "comp2": "$XXXk" },
-      { "component": "Training",       "product": "$XXXk", "comp1": "$XXXk", "comp2": "$XXXk" },
-      { "component": "Infrastructure", "product": "$XXXk", "comp1": "$XXXk", "comp2": "$XXXk" }
-    ]
-  },
-  "objectionHandling": [
-    { "objection": "\\"<competitor> is better because....\\"", "response": "<response>" },
-    { "objection": "\\"<objection>...\\"", "response": "<response>" },
-    { "objection": "\\"<objection>...\\"", "response": "<response>" },
-    { "objection": "\\"<objection>...\\"", "response": "<response>" }
-  ],
-  "winLoss": {
-    "total": 40,
-    "won": 25,
-    "lost": 15,
-    "winRate": 63,
-    "competitors": [
-      { "label": "${competitorNames[0] || 'Competitor 1'}", "wins": 15, "pct": 60, "color": "#a855f7" },
-      { "label": "${competitorNames[1] || 'Competitor 2'}", "wins": 7,  "pct": 28, "color": "#3b82d4" },
-      { "label": "Others", "wins": 3, "pct": 12, "color": "#5a6478" }
-    ],
-    "topMessages": ["<message 1>", "<message 2>", "<message 3>", "<message 4>"]
-  },
-  "aiCoach": {
-    "customerSays": "\\"<typical customer objection>\\"",
-    "suggestedResponse": "<detailed suggested sales response>",
-    "recommendedCaseStudy": "<Customer Type> – <result>",
-    "winProbability": "HIGH",
-    "kvps": ["<kvp1>", "<kvp2>", "<kvp3>", "<kvp4>"]
-  },
-  "pricingTiers": [
-    { "tier": "Starter",      "monthlyPrice": "$X/unit/mo",  "annualPrice": "$XK/yr",    "features": ["<f1>", "<f2>"] },
-    { "tier": "Professional", "monthlyPrice": "$X/unit/mo",  "annualPrice": "$XK/yr",    "features": ["<f1>", "<f2>", "<f3>"] },
-    { "tier": "Enterprise",   "monthlyPrice": "Custom",       "annualPrice": "$XXK+/yr",  "features": ["<f1>", "<f2>", "<f3>", "<f4>"] }
-  ]
-}
-
-Rules:
-- Include at least 8 keyFeatures items
-- Include at least 8 featureMatrix rows
-- Include all ${competitorNames.length > 1 ? competitorNames.length : 2} competitors in competitorSummary
-- Each competitorSummary entry MUST include an "ourEdge" array with 4-6 specific, actionable points explaining exactly how ${productName} leads or wins against that competitor — focus on real differentiators (TCO, features, ecosystem, support, deployment model, etc.)
-- Use realistic, accurate data based on your knowledge of ${productName}
-- featureMatrix values must be exactly "green", "yellow", or "red"
-- All monetary values in tcoData represent 3-year totals
-- Return ONLY the JSON, no backticks, no markdown`;
+Required structure:
+{"overview":{"logo":"<emoji>","name":"${productName.toUpperCase()}","category":"<category>","deployment":"<SaaS/On-Prem/Hybrid>","targetUsers":"<users>","productLaunch":"<year>","marketPosition":"<position>","description":"<2-3 sentences>"},"keyFeatures":[{"icon":"<emoji>","name":"<name>","description":"<one line>"},{"icon":"<emoji>","name":"<name>","description":"<one line>"},{"icon":"<emoji>","name":"<name>","description":"<one line>"},{"icon":"<emoji>","name":"<name>","description":"<one line>"},{"icon":"<emoji>","name":"<name>","description":"<one line>"},{"icon":"<emoji>","name":"<name>","description":"<one line>"},{"icon":"<emoji>","name":"<name>","description":"<one line>"},{"icon":"<emoji>","name":"<name>","description":"<one line>"}],"discoveryQuestions":["<q1>","<q2>","<q3>","<q4>","<q5>"],"recommendedResponses":["<r1>","<r2>","<r3>","<r4>","<r5>"],"strengths":["<s1>","<s2>","<s3>","<s4>","<s5>","<s6>"],"weaknesses":["<w1>","<w2>","<w3>","<w4>"],"caseStudies":[{"icon":"🏢","customer":"Enterprise","type":"Finance","challenge":"<challenge>","result":"<result>"},{"icon":"🏥","customer":"Healthcare","type":"Healthcare","challenge":"<challenge>","result":"<result>"},{"icon":"🛒","customer":"Retail","type":"Retail","challenge":"<challenge>","result":"<result>"}],"keyCustomers":[{"logo":"🏢","name":"<company>","industry":"<industry>","color":"#3b82f6"},{"logo":"🏭","name":"<company>","industry":"<industry>","color":"#8b5cf6"},{"logo":"🏦","name":"<company>","industry":"<industry>","color":"#059669"},{"logo":"🛒","name":"<company>","industry":"<industry>","color":"#f59e0b"},{"logo":"🏥","name":"<company>","industry":"<industry>","color":"#ef4444"}],"competitorSummary":[{"name":"${competitorNames[0]||'Competitor1'}","logo":"<emoji>","color":"#ef4444","marketPosition":"Challenger","overview":"<2 sentences>","strengths":["<s1>","<s2>","<s3>"],"weaknesses":["<w1>","<w2>","<w3>"],"ourEdge":["<e1>","<e2>","<e3>","<e4>","<e5>"],"pricingSummary":"<pricing>"},{"name":"${competitorNames[1]||'Competitor2'}","logo":"<emoji>","color":"#f59e0b","marketPosition":"Leader","overview":"<2 sentences>","strengths":["<s1>","<s2>","<s3>"],"weaknesses":["<w1>","<w2>","<w3>"],"ourEdge":["<e1>","<e2>","<e3>","<e4>","<e5>"],"pricingSummary":"<pricing>"}],"featureMatrix":{"labels":{"product":"${productName}","comp1":"${competitorNames[0]||'Competitor1'}","comp2":"${competitorNames[1]||'Competitor2'}"},"rows":[{"feature":"Ease of Use","product":"green","comp1":"yellow","comp2":"red"},{"feature":"Scalability","product":"green","comp1":"green","comp2":"yellow"},{"feature":"Cost","product":"green","comp1":"red","comp2":"yellow"},{"feature":"Integration","product":"green","comp1":"yellow","comp2":"red"},{"feature":"Support","product":"green","comp1":"yellow","comp2":"yellow"},{"feature":"Security","product":"green","comp1":"yellow","comp2":"red"},{"feature":"Performance","product":"green","comp1":"yellow","comp2":"green"},{"feature":"Analytics","product":"green","comp1":"red","comp2":"yellow"}]},"tcoData":{"labels":{"product":"${productName}","comp1":"${competitorNames[0]||'Competitor1'}","comp2":"${competitorNames[1]||'Competitor2'}"},"maxValue":800,"totals":{"product":"$320k","comp1":"$580k","comp2":"$490k"},"rows":[{"component":"Licensing","product":"$120k","comp1":"$250k","comp2":"$180k"},{"component":"Implementation","product":"$60k","comp1":"$120k","comp2":"$100k"},{"component":"Support","product":"$50k","comp1":"$90k","comp2":"$80k"},{"component":"Training","product":"$40k","comp1":"$70k","comp2":"$80k"},{"component":"Infrastructure","product":"$50k","comp1":"$50k","comp2":"$50k"}]},"objectionHandling":[{"objection":"\\"${competitorNames[0]||'Competitor'} is cheaper\\"","response":"<response>"},{"objection":"\\"We already use ${competitorNames[0]||'Competitor'}\\"","response":"<response>"},{"objection":"\\"Too complex to implement\\"","response":"<response>"},{"objection":"\\"Not enough ROI proof\\"","response":"<response>"}],"winLoss":{"total":40,"won":25,"lost":15,"winRate":63,"competitors":[{"label":"${competitorNames[0]||'Competitor1'}","wins":15,"pct":60,"color":"#a855f7"},{"label":"${competitorNames[1]||'Competitor2'}","wins":7,"pct":28,"color":"#3b82d4"},{"label":"Others","wins":3,"pct":12,"color":"#5a6478"}],"topMessages":["Superior TCO","Faster deployment","Better support","Stronger security"]},"aiCoach":{"customerSays":"\\"Why should we choose ${productName} over ${competitorNames[0]||'competitors'}?\\"","suggestedResponse":"<detailed response>","recommendedCaseStudy":"Enterprise – 40% cost reduction","winProbability":"HIGH","kvps":["<kvp1>","<kvp2>","<kvp3>","<kvp4>"]},"pricingTiers":[{"tier":"Starter","monthlyPrice":"$10/unit/mo","annualPrice":"$100K/yr","features":["<f1>","<f2>"]},{"tier":"Professional","monthlyPrice":"$25/unit/mo","annualPrice":"$250K/yr","features":["<f1>","<f2>","<f3>"]},{"tier":"Enterprise","monthlyPrice":"Custom","annualPrice":"$500K+/yr","features":["<f1>","<f2>","<f3>","<f4>"]}]} [/INST]`;
 }
 
 function buildCompetitorPrompt(competitorName, productName, practice) {
-  return `You are a competitive intelligence analyst. Generate a detailed competitor profile.
-
-COMPETITOR: ${competitorName}
-BEING COMPARED TO: ${productName} (${practice} product)
-
-Return ONLY a valid JSON object (no markdown, no backticks):
-
-{
-  "name": "${competitorName}",
-  "logo": "<single emoji>",
-  "color": "<hex color that matches their brand>",
-  "marketPosition": "<Leader/Challenger/Niche/Visionary>",
-  "overview": "<2-3 sentence company and product overview>",
-  "strengths": ["<strength 1>", "<strength 2>", "<strength 3>", "<strength 4>"],
-  "weaknesses": ["<weakness 1>", "<weakness 2>", "<weakness 3>"],
-  "ourEdge": ["<how ${productName} leads vs ${competitorName} — specific differentiator 1>", "<differentiator 2>", "<differentiator 3>", "<differentiator 4>", "<differentiator 5>"],
-  "pricingSummary": "<indicative pricing e.g. $X/unit/mo, enterprise starting $XXK/yr>"
+  return `<s>[INST] Generate a competitor profile. Return ONLY valid JSON starting with { and ending with }.
+{"name":"${competitorName}","logo":"<emoji>","color":"<hex>","marketPosition":"<position>","overview":"<2-3 sentences>","strengths":["<s1>","<s2>","<s3>","<s4>"],"weaknesses":["<w1>","<w2>","<w3>"],"ourEdge":["<e1>","<e2>","<e3>","<e4>","<e5>"],"pricingSummary":"<pricing>"} [/INST]`;
 }
 
-Rules:
-- ourEdge must contain 4-6 specific, actionable points explaining exactly how ${productName} wins against ${competitorName}
-- Focus on real, verifiable differentiators: TCO, features, ecosystem, support depth, deployment flexibility, performance, etc.
-- Each point should be usable by a salesperson in a customer conversation
-- Return ONLY the JSON, no backticks, no markdown`;
-}
-
-// ─── Main product generation (broadcasts SSE progress) ───────────────────────
 async function generateProductData(productName, practice, description, competitorNames, rawData, jobId) {
   const STAGES = [
-    { percent: 10, stage: 'building_prompt',   message: 'Building AI prompt...' },
-    { percent: 20, stage: 'calling_gemini',    message: 'Calling Gemini AI...' },
-    { percent: 70, stage: 'parsing_response',  message: 'Parsing AI response...' },
-    { percent: 90, stage: 'saving_to_database',message: 'Saving to database...' },
+    { percent: 10, stage: 'building_prompt',    message: 'Building AI prompt...' },
+    { percent: 20, stage: 'calling_gemini',     message: 'Calling Hugging Face AI...' },
+    { percent: 70, stage: 'parsing_response',   message: 'Parsing AI response...' },
+    { percent: 90, stage: 'saving_to_database', message: 'Saving to database...' },
   ];
-
   if (jobId) sse.broadcast('ai_progress', { jobId, ...STAGES[0] });
-
   const prompt = buildProductPrompt(productName, practice, description, competitorNames, rawData);
-
   if (jobId) sse.broadcast('ai_progress', { jobId, ...STAGES[1] });
-
-  // Emit incremental ticks while Gemini is thinking so the progress bar moves
-  let tickPercent = 20;
-  let tickTimer   = null;
+  let tickPercent = 20, tickTimer = null;
   if (jobId) {
     tickTimer = setInterval(() => {
-      if (tickPercent < 65) {
-        tickPercent += 5;
-        sse.broadcast('ai_progress', {
-          jobId, percent: tickPercent,
-          stage: 'calling_gemini',
-          message: 'Gemini is generating your product data...',
-        });
-      }
+      if (tickPercent < 65) { tickPercent += 5; sse.broadcast('ai_progress', { jobId, percent: tickPercent, stage: 'calling_gemini', message: 'AI is generating your product data...' }); }
     }, 3000);
   }
-
   let text;
-  try {
-    text = await generateWithFallback(prompt);
-  } finally {
-    if (tickTimer) clearInterval(tickTimer);
-  }
-
+  try { text = await generateWithFallback(prompt); } finally { if (tickTimer) clearInterval(tickTimer); }
   if (jobId) sse.broadcast('ai_progress', { jobId, ...STAGES[2] });
-
   const parsed = parseAiJSON(text);
-
   if (jobId) sse.broadcast('ai_progress', { jobId, ...STAGES[3] });
-
   return parsed;
 }
 
-// ─── Competitor profile ───────────────────────────────────────────────────────
 async function generateCompetitorProfile(competitorName, productName, practice) {
   const prompt = buildCompetitorPrompt(competitorName, productName, practice);
-  const text   = await generateWithFallback(prompt);
+  const text = await generateWithFallback(prompt);
   return parseAiJSON(text);
 }
 
-// ─── High-accuracy extraction — uses MODELS_ACCURATE list ────────────────────
-async function generateAccurate(prompt) {
-  return generateWithFallback(prompt, MODELS_ACCURATE);
-}
+async function generateAccurate(prompt) { return generateWithFallback(prompt, MODELS_ACCURATE); }
 
 module.exports = { generateProductData, generateCompetitorProfile, generateWithFallback, generateAccurate };

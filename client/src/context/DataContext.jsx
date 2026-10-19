@@ -5,10 +5,11 @@ const DataContext = createContext(null);
 
 /**
  * Provides product data from MongoDB to the entire app.
- * Replaces the static dashboardData.js as the single source of truth.
+ * practices shape (3-level): { practice: { oem: [products] } }
+ * e.g. { IBM: { IBM: ['Instana', 'IBM MQ'] }, 'CS-FIREWALL': { 'Palo Alto': ['PA-Series'] } }
  */
 export function DataProvider({ children }) {
-  const [practices, setPractices]       = useState({});   // { IBM: [...], AWS: [...] }
+  const [practices, setPractices]       = useState({});   // 3-level: { practice: { oem: [products] } }
   const [productCache, setProductCache] = useState({});   // { 'IBM/Instana': data }
   const productCacheRef                 = useRef({});     // mirror for stable reads inside callbacks
   const [loading, setLoading]           = useState(true);
@@ -18,12 +19,13 @@ export function DataProvider({ children }) {
   useEffect(() => {
     fetchPractices()
       .then((map) => {
+        // map is 3-level: { practice: { oem: [products] } }
         setPractices(map);
         setLoading(false);
       })
       .catch((err) => {
         console.warn('API unavailable, falling back to static data:', err.message);
-        // Graceful fallback — import static data lazily
+        // PRODUCTS_BY_PRACTICE is already 3-level: { practice: { oem: [products] } }
         import('../dashboardData.js').then((mod) => {
           setPractices(mod.PRODUCTS_BY_PRACTICE);
           setLoading(false);
@@ -97,29 +99,38 @@ export function DataProvider({ children }) {
   }, []);
 
   /**
-   * Add a new practice/product combo to the local list without refetching all.
+   * Add a new practice/oem/product combo to the local list without refetching all.
+   * oem defaults to practice name if not supplied.
    */
-  const addProductToList = useCallback((practice, product) => {
+  const addProductToList = useCallback((practice, product, oem) => {
+    const oemKey = oem || practice;
     setPractices((prev) => {
-      const existing = prev[practice] || [];
+      const pracEntry = prev[practice] || {};
+      const existing = pracEntry[oemKey] || [];
       if (existing.includes(product)) return prev;
-      return { ...prev, [practice]: [...existing, product] };
+      return {
+        ...prev,
+        [practice]: { ...pracEntry, [oemKey]: [...existing, product] },
+      };
     });
   }, []);
 
-  /** Add a brand-new practice (empty product list) */
+  /** Add a brand-new practice (empty oem map) */
   const addPracticeToList = useCallback((practiceName) => {
     setPractices((prev) => {
       if (prev[practiceName]) return prev;
-      return { ...prev, [practiceName]: [] };
+      return { ...prev, [practiceName]: {} };
     });
   }, []);
 
   /** Remove a product from the local list (after delete) */
-  const removeProductFromList = useCallback((practice, product) => {
+  const removeProductFromList = useCallback((practice, product, oem) => {
+    const oemKey = oem || practice;
     setPractices((prev) => {
-      const updated = (prev[practice] || []).filter(p => p !== product);
-      return { ...prev, [practice]: updated };
+      const pracEntry = prev[practice];
+      if (!pracEntry) return prev;
+      const updated = (pracEntry[oemKey] || []).filter(p => p !== product);
+      return { ...prev, [practice]: { ...pracEntry, [oemKey]: updated } };
     });
     invalidateProduct(practice, product);
   }, [invalidateProduct]);

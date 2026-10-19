@@ -534,6 +534,7 @@ export default function ProductFormPage({ pin: externalPin, onPinSet, editDoc, d
 
   // ── Form state ──────────────────────────────────────────────────────────────
   const [practice, setPractice]   = useState(editDoc?.practice || defaultPractice || '');
+  const [oem, setOem]             = useState(editDoc?.oem || '');
   const [productName, setProduct] = useState(editDoc?.product  || '');
   const [competitors, setComp]    = useState(
     Array.isArray(editDoc?.competitors)
@@ -759,6 +760,7 @@ export default function ProductFormPage({ pin: externalPin, onPinSet, editDoc, d
       // Include _id when editing so saveManualProduct uses PUT instead of POST
       ...(editDoc?._id ? { _id: editDoc._id } : {}),
       practice,
+      oem: oem || practice,  // fall back to practice name if oem not set
       product: productName,
       competitors,
       overview: { ...overview, name: overview.name || productName.toUpperCase() },
@@ -989,6 +991,18 @@ export default function ProductFormPage({ pin: externalPin, onPinSet, editDoc, d
               ) : (
                 <input value={practice} onChange={e => handlePracticeChange(e.target.value)} placeholder="e.g. IBM" style={INPUT_STYLE} />
               )}
+            </Field>
+
+            <Field label="OEM / Vendor *">
+              <input
+                value={oem}
+                onChange={e => setOem(e.target.value)}
+                placeholder="e.g. IBM, CrowdStrike, Palo Alto Networks"
+                style={INPUT_STYLE}
+              />
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3 }}>
+                The vendor/brand name that groups products within this practice
+              </div>
             </Field>
 
             <Field label="Product Name *">

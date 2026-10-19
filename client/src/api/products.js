@@ -123,7 +123,7 @@ export async function extractFromFile(file, pin) {
 export async function chatCoach({ question, productName, practice, productContext }) {
   const { data } = await axios.post(`${API_BASE}/coach/chat`, {
     question, productName, practice, productContext,
-  });
+  }, { timeout: 120000 }); // 120s timeout — large models can take 60-90s
   return data; // { answer }
 }
 

@@ -21,6 +21,7 @@ function saveSettings(settings) {
 export function SettingsProvider({ children }) {
   const [settings, setSettings] = useState(() => ({
     winLossEnabled: false,
+    tcoEnabled: false,
     ...loadSettings(),
   }));
 

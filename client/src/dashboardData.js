@@ -965,10 +965,21 @@ export const ALL_PRODUCTS = {
   'AWS/AWS': AWS_DASHBOARD,
 };
 
-export const PRACTICES = ['IBM', 'AWS'];
+export const PRACTICES = ['IBM', 'RED HAT', 'CS-APP SECURITY', 'CS-FIREWALL', 'CS-DATA SECURITY', 'DC SOLUTIONS', 'SERVERS', 'DATABASE', 'IT OPERATIONS', 'AWS'];
+
+// 3-level static fallback map: { practice: { oem: [products] } }
+// Used only when the API is unavailable. Mirrors the actual DB migration.
 export const PRODUCTS_BY_PRACTICE = {
-  IBM: ['Instana', 'IBM MQ', 'IBM Sterling', 'IBM Turbonomic'],
-  AWS: ['AWS'],
+  IBM:                 { IBM:           ['Instana', 'IBM Power 11'] },
+  'RED HAT':           { 'Red Hat':     ['Red Hat Enterprise Linux (RHEL)', 'Red Hat OpenShift', 'Red Hat OpenShift Virtualization', 'Red Hat Ansible Automation Platform'] },
+  'CS-APP SECURITY':   { ColorTokens:   ['ColorTokens Xshield'], F5: ['BIG-IP ADC'] },
+  'CS-FIREWALL':       { 'Check Point': ['Check Point'] },
+  'CS-DATA SECURITY':  { Thales:        ['CipherTrust'] },
+  'DC SOLUTIONS':      { NetApp:        ['NetApp ONTAP'], Nutanix: ['Nutanix Cloud Platform'], Commvault: ['Commvault Cloud Unity'] },
+  SERVERS:             { Dell:          ['PowerEdge'] },
+  DATABASE:            { Databricks:    ['Databricks'], EDB: ['EDB Postgres'] },
+  'IT OPERATIONS':     { Quest:         ['KACE SMA'] },
+  AWS:                 { AWS:           ['AWS'] },
 };
 
 export function getProductData(practice, product) {

@@ -102,7 +102,7 @@ router.post('/verify-pin', (req, res) => {
 });
 
 // ─── SSE — Real-time event stream ─────────────────────────────────────────────
-router.get('/events', (req, res) => {
+router.get('/products/events', (req, res) => {
   // Explicit CORS header needed for EventSource (browser doesn't send preflight)
   const origin = req.headers.origin || '';
   if (origin) res.setHeader('Access-Control-Allow-Origin', origin);
@@ -129,11 +129,17 @@ router.get('/events', (req, res) => {
 // ─── GET /api/practices — list practices + products ───────────────────────────
 router.get('/practices', async (_req, res) => {
   try {
-    const docs = await Product.find({}, 'practice product').lean();
+    const docs = await Product.find({}, 'practice oem product').lean();
+    // Build 3-level map: { practice: { oem: [products] } }
+    // Also expose flat list per practice for backward compat via ?flat=1
     const map = {};
     for (const d of docs) {
-      if (!map[d.practice]) map[d.practice] = [];
-      map[d.practice].push(d.product);
+      const oemKey = d.oem || d.practice; // fall back to practice name if oem not set
+      if (!map[d.practice]) map[d.practice] = {};
+      if (!map[d.practice][oemKey]) map[d.practice][oemKey] = [];
+      if (!map[d.practice][oemKey].includes(d.product)) {
+        map[d.practice][oemKey].push(d.product);
+      }
     }
     res.json(map);
   } catch (err) {
@@ -222,7 +228,7 @@ router.post('/products/manual', async (req, res) => {
       { $set: { ...productData, aiGenerated: false } },
       { upsert: true, new: true }
     );
-    sse.broadcast('product_added', { productId: doc._id, practice: doc.practice, product: doc.product });
+    sse.broadcast('product_added', { productId: doc._id, practice: doc.practice, oem: doc.oem || doc.practice, product: doc.product });
     res.status(201).json(doc);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -293,7 +299,7 @@ router.post('/products/ai-fill', async (req, res) => {
       { upsert: true, new: true }
     );
 
-    sse.broadcast('product_added', { jobId, productId: doc._id, practice: doc.practice, product: doc.product, percent: 100 });
+    sse.broadcast('product_added', { jobId, productId: doc._id, practice: doc.practice, oem: doc.oem || doc.practice, product: doc.product, percent: 100 });
     sse.broadcast('ai_progress', { jobId, stage: 'complete', percent: 100, message: 'Missing fields filled by AI!' });
   } catch (err) {
     sse.broadcast('ai_progress', { jobId, stage: 'error', percent: 0, message: err.message });
@@ -575,7 +581,7 @@ router.post('/products', async (req, res) => {
       { $set: data },
       { upsert: true, new: true }
     );
-    sse.broadcast('product_added', { productId: doc._id, practice: doc.practice, product: doc.product });
+    sse.broadcast('product_added', { productId: doc._id, practice: doc.practice, oem: doc.oem || doc.practice, product: doc.product });
     res.status(201).json(doc);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -602,7 +608,7 @@ router.put('/products/:id', async (req, res) => {
   try {
     const doc = await Product.findByIdAndUpdate(req.params.id, { $set: normalized }, { new: true });
     if (!doc) return res.status(404).json({ error: 'Not found' });
-    sse.broadcast('product_added', { productId: doc._id, practice: doc.practice, product: doc.product });
+    sse.broadcast('product_added', { productId: doc._id, practice: doc.practice, oem: doc.oem || doc.practice, product: doc.product });
     res.json(doc);
   } catch (err) {
     res.status(500).json({ error: err.message });
